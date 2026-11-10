@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Travian Artifact Planner — v0.6</title>
+<title>Travian Artifact Planner — v0.7</title>
 <style>
 :root{--bg:#0c1321;--surface:#131e30;--line:#2a3a54;--text:#edf3fc;--muted:#91a2bb;--green:#6bdbad;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -32,16 +32,16 @@ textarea{display:block;width:100%;height:130px;resize:vertical;background:#0b142
 </style>
 </head>
 <body>
-<header class="topbar"><div class="brand"><div class="logo">A</div>Travian Artifact Planner <span class="muted" style="font-size:11px;font-weight:400">v0.6</span></div><nav class="nav"><button class="on" data-view="ov">Overview</button><button data-view="op" id="opBtn">Operation</button><button data-view="mp">Map</button><button data-view="na">Natars</button><button data-view="st">Setting</button></nav></header>
+<header class="topbar"><div class="brand"><div class="logo">A</div>Travian Artifact Planner <span class="muted" style="font-size:11px;font-weight:400">v0.7</span></div><nav class="nav"><button class="on" data-view="ov">Overview</button><button data-view="op" id="opBtn" class="adm">Operation</button><button data-view="mp">Map</button><button data-view="na">Natars</button><button data-view="st">Setting</button></nav></header>
 <main>
 <h1 id="ttl">Overview</h1><p class="sub" id="sub">Paste artifacts, filter, and compare the closest villages.</p>
 <div id="ovPage">
 <section class="panel" style="display:flex;gap:14px;align-items:end;flex-wrap:wrap"><div><div class="glabel">Travian server</div><select class="field" id="server" style="min-width:230px"></select></div><div style="flex:1"><div class="glabel">Map data</div><div id="srvInfo" class="muted" style="font-size:12px">Loading…</div></div></section>
 
 <section class="panel">
- <div class="head"><div><h2>Artifact information parser</h2><p>One per line, e.g. “Architect's Large 125|-45”. Type and size are read from the name.</p></div><span class="meta">PRIVATE IMPORT</span></div>
+ <div class="head"><div><h2>Artifact information parser</h2><p>Paste in any order: an artifact starts at its name and ends at its (x | y) coordinates. Blank lines are optional.</p></div><span class="meta">PRIVATE IMPORT</span></div>
  <textarea id="inp" spellcheck="false"></textarea>
- <div class="foot"><span class="hint" id="cntInfo"></span><button id="sampleBtn">Load sample (all types &amp; sizes)</button><button class="primary" id="importBtn">Parse artifact information</button></div>
+ <div class="foot"><span class="hint" id="cntInfo"></span><button id="sampleBtn">Load sample (all types &amp; sizes)</button><button id="clearArt">Clear pasted artifacts</button><button class="primary" id="importBtn">Parse artifact information</button></div>
 </section>
 
 <section class="panel">
@@ -123,7 +123,7 @@ function drawFilters(){
  $("al").querySelectorAll("[data-ind]").forEach(x=>x.indeterminate=true);
  $("troop").innerHTML=TROOPS.map(t=>`<label class="check"><input type="checkbox" data-k="troop" value="${t[0]}" ${state.troop.has(t[0])?"checked":""}>${t[1]}</label>`).join("")+'<div class="note adm" style="margin:8px 0 2px">Villages with treasury level</div>'+["10","20"].map(x=>`<label class="check adm"><input type="checkbox" data-k="tre" value="${x}" ${state.tre.has(x)?"checked":""}>Treasury ${x}${x==="10"?"+":""}</label>`).join("");
 }
-let ADMIN=false,ADMINH="",NAT=[],vsel=[],CONFCFG={},DEFCONF={},MYT=[],SRVX=0;
+let done=new Set(),ADMIN=false,ADMINH="",NAT=[],vsel=[],CONFCFG={},DEFCONF={},MYT=[],SRVX=0;
 const treOk=v=>!state.tre.size||!ADMIN||(state.tre.has("10")&&(vi(v[3]).t||0)>=10)||(state.tre.has("20")&&(vi(v[3]).t||0)>=20);
 function candidates(ig){return V.filter(v=>state.al.has(v[2])&&(!players.length||players.includes(v[1]))&&(ig||!vsel.length||vsel.includes(v[3]))&&treOk(v))}
 function drawVillage(){const vs=candidates(true).filter(v=>!vsel.includes(v[3])),cap=400;
@@ -148,33 +148,33 @@ const TN={horse:"Horse",inf:"Infantry",cat:"Catapult"},KS=["horse","inf","cat"];
 const mult=()=>SRVX||+((($("server").value||"").match(/\.x(\d+)\./)||[,1])[1]);
 async function loadInfo(id){let b={},l={};try{b=(await getJSON("config/village-info.json"))[id]||{}}catch(e){}try{l=JSON.parse(localStorage.getItem("tap-"+id)||"{}")}catch(e){}INFO={...b,...l}}
 function saveInfo(){try{localStorage.setItem("tap-"+$("server").value,JSON.stringify(INFO))}catch(e){}}
-function resetOps(){removed.clear();sel.clear();picks.clear();plan=[];shown={}}
+function resetOps(){removed.clear();done.clear();sel.clear();picks.clear();plan=[];shown={}}
 const secs=(d,k,ts)=>{const s=SPEED[k]*mult();return Math.round(3600*(Math.min(d,20)/s+Math.max(d-20,0)/(s*(1+.1*ts))))};
 const fmt=s=>`${Math.floor(s/3600)}:${String(Math.floor(s%3600/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 const arr=(b,s,day)=>new Date(b+s*1000).toLocaleString("en-GB",{...(day?{weekday:"short"}:{}),hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).replace(",","");
 const vi=c=>INFO[c]||{};
-function thead(m){const g=k=>`<th class="c-${k} g1">${TN[k]}</th><th class="c-${k} g2">Arrive</th>`;return "<tr><th>Artifact</th><th>Coords</th><th>Closest village</th><th>Dist.</th><th>Player</th><th>Alliance</th>"+KS.map(g).join("")+'<th class="adm">TS</th><th class="adm">Treasury</th>'+(m==="ov"?"<th>Op</th>":"")+"<th></th></tr>"}
+function thead(m){const g=k=>`<th class="c-${k} g1">${TN[k]}</th><th class="c-${k} g2">Arrive</th>`;return "<tr><th>Artifact</th><th>Coords</th><th>Closest village</th><th>Dist.</th><th>Player</th><th>Alliance</th>"+KS.map(g).join("")+'<th class="adm">TS</th><th class="adm">Treasury</th>'+(m==="ov"?'<th class="adm">Op</th>':"")+"<th></th></tr>"}
 function rowHTML(a,v,now,o){const d=dist(a.coord,v[3]),ts=vi(v[3]).ts||0,tr=vi(v[3]).t||0,ek=a.coord+"~"+v[3],op=o.mode==="op",show=o.first||op;
  const cells=KS.map(k=>{const s=secs(d,k,ts);return `<td class="c-${k} g1 ${o.best&&k===o.rank?"best":""}">${fmt(s)}</td><td class="c-${k} g2">${op?`<input type="checkbox" data-pick="${esc(ek)}|${k}" ${picks.has(ek+"|"+k)?"checked":""}> `:""}${arr(now,s,!op)}</td>`}).join("");
- return `<tr class="${o.first?"first":""}"><td>${show?`<b>${esc(a.name)}</b><span class="pill ${a.size}">${a.size}</span>`:""}</td><td class="coord">${show?a.coord:""}</td><td>${esc(v[0])} <span class="coord">${v[3]}</span>${v[5]?'<span class="cap">CAP</span>':""}</td><td>${d.toFixed(1)}</td><td>${esc(v[1])}</td><td>${esc(v[2])}</td>${cells}<td class="adm"><input class="num" type="number" min="0" max="20" data-info="ts" data-c="${v[3]}" value="${ts}"></td><td class="adm"><input class="num" type="number" min="0" max="20" data-info="t" data-c="${v[3]}" value="${tr}"></td>${op?"":`<td><input type="checkbox" data-sel="${esc(ek)}" ${sel.has(ek)?"checked":""}></td>`}<td><button class="x" data-${op?"unsel":"del"}="${esc(ek)}" title="${op?"Remove from operation":"Delete from list"}">✕</button></td></tr>`}
+ return `<tr class="${o.first?"first":""}"><td>${show?`<b>${esc(a.name)}</b><span class="pill ${a.size}">${a.size}</span>${op?"":`<button class="x" data-adone="${esc(a.coord)}" title="Remove this artifact from the results">✕</button>`}`:""}</td><td class="coord">${show?a.coord:""}</td><td>${esc(v[0])} <span class="coord">${v[3]}</span>${v[5]?'<span class="cap">CAP</span>':""}</td><td>${d.toFixed(1)}</td><td>${esc(v[1])}</td><td>${esc(v[2])}</td>${cells}<td class="adm"><input class="num" type="number" min="0" max="20" data-info="ts" data-c="${v[3]}" value="${ts}"></td><td class="adm"><input class="num" type="number" min="0" max="20" data-info="t" data-c="${v[3]}" value="${tr}"></td>${op?"":`<td class="adm"><input type="checkbox" data-sel="${esc(ek)}" ${sel.has(ek)?"checked":""}></td>`}<td><button class="x" data-${op?"unsel":"del"}="${esc(ek)}" title="${op?"Remove from operation":"Delete from list"}">✕</button></td></tr>`}
 const setCls=()=>["tbl","tbl2"].forEach(id=>KS.forEach(k=>$(id).classList.toggle("no-"+k,!state.troop.has(k))));
 function tabs(){$("opBtn").textContent="Operation"+(sel.size?` (${sel.size})`:"")}
 function render(){setCls();$("th").innerHTML=thead("ov");
- const now=Date.now(),arts=artifacts.filter(a=>state.size.has(a.size)&&state.type.has(a.type)),vs=candidates(false),rank=[...state.troop][0]||"horse",rows=[];
+ const now=Date.now(),arts=artifacts.filter(a=>state.size.has(a.size)&&state.type.has(a.type)&&!done.has(a.coord)),vs=candidates(false),rank=[...state.troop][0]||"horse",rows=[];
  arts.forEach(a=>{const ls=vs.filter(v=>!removed.has(a.coord+"~"+v[3])).map(v=>({v,d:dist(a.coord,v[3])})).sort((x,y)=>x.d-y.d),n=shown[a.coord]||10;
   ls.slice(0,n).forEach((r,i)=>rows.push(rowHTML(a,r.v,now,{first:!i,best:!i,rank,mode:"ov"})));
   if(ls.length>n)rows.push(`<tr><td colspan="16" class="more"><button data-more="${esc(a.coord)}">Show 25 more (${ls.length-n} left)</button></td></tr>`)});
- $("body").innerHTML=rows.length?rows.join(""):`<tr><td colspan="16" class="empty">${V.length?"No matching results. Try enabling more filters.":"No map data loaded."}</td></tr>`;
+ $("body").innerHTML=rows.length?rows.join(""):`<tr><td colspan="16" class="empty">${!V.length?"No map data loaded.":!artifacts.length?"No artifacts loaded. Paste the artifact information above.":"No matching results. Try enabling more filters or restore removed artifacts."}</td></tr>`;
  $("count").textContent=`${arts.length} artifacts · ${vs.length.toLocaleString()} villages in scope`;
  $("cntInfo").textContent=`${artifacts.length} artifacts loaded`;
- $("restore").style.display=removed.size?"":"none";$("restore").textContent=`Restore removed (${removed.size})`;tabs()}
+ $("restore").style.display=removed.size+done.size?"":"none";$("restore").textContent=`Restore removed (${removed.size+done.size})`;tabs()}
 function opRender(){setCls();$("th2").innerHTML=thead("op");const now=Date.now();
  const items=[...sel.values()].sort((x,y)=>x.a.coord===y.a.coord?dist(x.a.coord,x.v[3])-dist(y.a.coord,y.v[3]):x.a.coord<y.a.coord?-1:1);
  $("body2").innerHTML=items.length?items.map(e=>rowHTML(e.a,e.v,now,{mode:"op"})).join(""):`<tr><td colspan="15" class="empty">Nothing selected yet. Tick the “Op” box on rows in the Overview tab.</td></tr>`;
  $("pickInfo").textContent=`${picks.size} troop(s) ticked`;
  plan.sort((x,y)=>x.ms-y.ms);const G={};plan.forEach((p,i)=>(G[p.a.coord]=G[p.a.coord]||[]).push([p,i]));
  $("planBody").innerHTML=plan.length?Object.values(G).map(g=>`<tr class="first"><td colspan="10"><b>${esc(g[0][0].a.name)}</b> <span class="coord">${g[0][0].a.coord}</span><span class="pill ${g[0][0].a.size}">${g[0][0].a.size}</span> <span class="muted">· ${g.length} troop(s)</span></td></tr>`+g.map(([p,i],n)=>`<tr><td>${n+1}</td><td class="best">${arr(p.ms,0)}</td><td>${esc(p.a.name)}</td><td class="coord">${p.a.coord}</td><td>${TN[p.k]}</td><td>${esc(p.v[0])} <span class="coord">${p.v[3]}</span></td><td>${esc(p.v[1])}</td><td>${esc(p.v[2])}</td><td>${fmt(p.s)}</td><td><button class="x" data-pdel="${i}" title="Remove from plan">✕</button></td></tr>`).join("")).join(""):`<tr><td colspan="10" class="empty">No plan yet. Tick troop arrival boxes above and press “Confirm”.</td></tr>`}
-function show(v){view=v;["ov","op","mp","na","st"].forEach(p=>$(p+"Page").style.display=p===v?"":"none");document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("on",b.dataset.view===v));$("ttl").textContent={ov:"Overview",op:"Operation",mp:"Map",na:"Natars",st:"Setting"}[v];$("sub").textContent={ov:"Paste artifacts, filter, and compare the closest villages.",op:"Pick troops from the selected villages and build the attack plan.",mp:"Where the artifacts are on the 401×401 map.",na:"Record Natar defence from reports as a reference for future servers.",st:"Confederacies, troop speeds, and your villages with TS and treasury levels."}[v];if(v==="st"){$("gate").style.display=ADMIN?"none":"";$("stBody").style.display=ADMIN?"":"none"}v==="ov"?render():v==="op"?opRender():v==="mp"?drawMap():v==="na"?naRender():v==="st"&&ADMIN?trRender():0}
+function show(v){if(v==="op"&&!ADMIN){toast("Operation is for admins only. Unlock it in Setting.");v="ov"}view=v;["ov","op","mp","na","st"].forEach(p=>$(p+"Page").style.display=p===v?"":"none");document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("on",b.dataset.view===v));$("ttl").textContent={ov:"Overview",op:"Operation",mp:"Map",na:"Natars",st:"Setting"}[v];$("sub").textContent={ov:"Paste artifacts, filter, and compare the closest villages.",op:"Pick troops from the selected villages and build the attack plan.",mp:"Where the artifacts are on the 401×401 map.",na:"Record Natar defence from reports as a reference for future servers.",st:"Confederacies, troop speeds, and your villages with TS and treasury levels."}[v];if(v==="st"){$("gate").style.display=ADMIN?"none":"";$("stBody").style.display=ADMIN?"":"none"}v==="ov"?render():v==="op"?opRender():v==="mp"?drawMap():v==="na"?naRender():v==="st"&&ADMIN?trRender():0}
 const redraw=()=>view==="ov"?render():view==="op"?opRender():view==="st"?trRender():0;
 const drop=ek=>KS.forEach(k=>picks.delete(ek+"|"+k));
 document.addEventListener("change",e=>{const t=e.target,d=t.dataset;
@@ -184,10 +184,11 @@ document.addEventListener("change",e=>{const t=e.target,d=t.dataset;
 document.addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;const d=t.dataset;
  if(d.view)return show(d.view);
  if(d.del){removed.add(d.del);sel.delete(d.del);drop(d.del);return render()}
+ if(d.adone){done.add(d.adone);return render()}
  if(d.more){shown[d.more]=(shown[d.more]||10)+25;return render()}
  if(d.unsel){sel.delete(d.unsel);drop(d.unsel);tabs();return opRender()}
  if(d.pdel!==undefined){plan.splice(+d.pdel,1);return opRender()}
- if(t.id==="restore"){removed.clear();render()}
+ if(t.id==="restore"){removed.clear();done.clear();render()}
  if(t.id==="recalc")redraw();
  if(t.id==="clearPlan"){plan=[];opRender()}
  if(t.id==="confirm"){if(!picks.size)return toast("Tick at least one troop arrival box first.");const now=Date.now();plan=[...picks].map(p=>{const i=p.lastIndexOf("|"),ek=p.slice(0,i),k=p.slice(i+1),e=sel.get(ek);return{ms:now+secs(dist(e.a.coord,e.v[3]),k,vi(e.v[3]).ts||0)*1000,s:secs(dist(e.a.coord,e.v[3]),k,vi(e.v[3]).ts||0),k,a:e.a,v:e.v}});opRender();toast(`Plan created with ${plan.length} entries.`)}
@@ -222,14 +223,25 @@ document.addEventListener("change",e=>{const t=e.target,d=t.dataset;
  if(d.sp){const x=+t.value;if(d.sp==="srv")SRVX=x>0?x:0;else if(x>0)SPEED[d.sp]=x;saveSet();setUI()}});
 const szOf=n=>/unique/i.test(n)?"Unique":/large|great/i.test(n)?"Large":/small|slight/i.test(n)?"Small":null;
 const tyOf=n=>(TYPES.find(t=>t[1].test(n))||[])[0]||"Other";
-function parse(){const out=[],err=[];let last="";
- $("inp").value.split("\n").forEach((raw,i)=>{const l=raw.trim();if(!l)return;const m=l.match(/\(?\s*(-?\d{1,3})\s*\|\s*(-?\d{1,3})\s*\)?/);
-  if(!m){if(!l.startsWith("("))last=l;return}
-  const name=l.replace(m[0],"").replace(/^\s*\d+\s*/,"").trim()||last,size=szOf(name);
-  if(!size)return err.push(`Line ${i+1}: size not recognised (${name||"no name"})`);
-  if(Math.abs(+m[1])>200||Math.abs(+m[2])>200)return err.push(`Line ${i+1}: outside map range`);
-  out.push({name,type:tyOf(name),size,coord:`${+m[1]}|${+m[2]}`})});
- if(!out.length)return toast(err.join(" · ")||"No valid artifact data.");artifacts=out;resetOps();all();tabs();toast(`Parsed ${out.length} artifacts${err.length?`; ${err.length} issue(s): ${err[0]}`:" successfully"}.`)}
+const COORD=/\(?\s*(-?\d{1,3})\s*\|\s*(-?\d{1,3})\s*\)?/,EXPECTED=87;
+const strong=n=>!!szOf(n)||TYPES.some(t=>t[1].test(n));
+function parse(){const out=[],err=[],seen=new Map();let cur="",pend=null,prev="",dup=0;
+ const emit=(name,m)=>{const size=szOf(name),k=name.toLowerCase().replace(/\s+/g," ");
+  if(!size)return err.push(`size not recognised (${name})`);
+  if(Math.abs(+m[1])>200||Math.abs(+m[2])>200)return err.push(`outside map range (${name})`);
+  const c=`${+m[1]}|${+m[2]}`;if(seen.has(k)){dup++;if(seen.get(k)!==c)err.push(`duplicate name with other coordinates (${name})`);return}
+  seen.set(k,c);out.push({name,type:tyOf(name),size,coord:c})};
+ $("inp").value.split(/\r?\n/).forEach(raw=>{const l=raw.trim();if(!l)return;const m=l.match(COORD);
+  let nm=(m?l.replace(m[0]," "):l).trim();if(/^[\s\d.,]*$/.test(nm))nm="";nm=nm.replace(/^\s*\d+[\s,]+/,"").replace(/[\s,]+\d+\s*$/,"").replace(/^\((.*)\)$/,"$1").trim();
+  const key=nm.toLowerCase();
+  if(!m){if(!nm||key===prev)return;prev=key;if(pend){emit(nm,pend);pend=null;return}
+   if(!cur)cur=nm;else if(strong(nm)){if(cur&&strong(cur))err.push(`no coordinates found for ${cur}`);cur=nm}return}
+  if(nm&&key!==prev){prev=key;if(!cur||strong(nm))cur=nm}
+  if(cur){emit(cur,m);cur="";pend=null}else pend=m});
+ if(cur&&strong(cur))err.push(`no coordinates found for ${cur}`);
+ if(!out.length)return toast(err[0]||"No valid artifact data found.");
+ artifacts=out;resetOps();all();tabs();
+ toast(`Parsed ${out.length} unique artifacts${out.length===EXPECTED?" ✓":` (expected ${EXPECTED})`}${dup?`, ${dup} duplicate(s) skipped`:""}${err.length?`, ${err.length} problem(s): ${err[0]}`:""}.`)}
 function all(){drawFilters();drawVillage();drawPlayers();render()}
 const prune=()=>{players=players.filter(p=>state.al.has(alOf(p)));vsel=vsel.filter(c=>VBC[c]&&state.al.has(VBC[c][2]))};
 document.addEventListener("change",e=>{const t=e.target;
@@ -245,7 +257,7 @@ $("pl").addEventListener("input",sug);
 $("pl").addEventListener("keydown",e=>{if(e.key==="Enter")addPlayer()});
 
 const sha=async s=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,"0")).join("");
-function setAdmin(on){ADMIN=on;document.body.classList.toggle("noadmin",!on);try{on?sessionStorage.setItem("tap-adm",ADMINH):sessionStorage.removeItem("tap-adm")}catch(e){}if(view==="st")show("st");else redraw();all()}
+function setAdmin(on){ADMIN=on;document.body.classList.toggle("noadmin",!on);try{on?sessionStorage.setItem("tap-adm",ADMINH):sessionStorage.removeItem("tap-adm")}catch(e){}if(!on&&view==="op")return show("ov");if(view==="st")show("st");else redraw();all()}
 const COL={Small:"#6bdbad",Large:"#c79bff",Unique:"#f7dc9b"};
 function drawMap(){const c=$("mapc"),x=c.getContext("2d"),S=c.width/401;x.fillStyle="#0b1423";x.fillRect(0,0,c.width,c.height);x.font="11px sans-serif";x.fillStyle="#6f819c";
  for(let g=-200;g<=200;g+=50){const p=(g+200.5)*S;x.strokeStyle=g?"#1c2b44":"#3a517a";x.beginPath();x.moveTo(p,0);x.lineTo(p,c.height);x.moveTo(0,p);x.lineTo(c.width,p);x.stroke();x.fillText(g,p+2,c.height-3);x.fillText(-g,2,p-2)}
@@ -274,7 +286,7 @@ document.addEventListener("click",async e=>{const b=e.target.closest("button");i
  if(b.id==="lock")setAdmin(false);
  if(b.id==="mAdd"){const n=$("mn").value.trim(),m=$("mc").value.match(/(-?\d+)\s*\|\s*(-?\d+)/);if(!n)return toast("Enter a village name.");const c=m?`${+m[1]}|${+m[2]}`:"";MYT.push({n,c,u:{}});if(c){INFO[c]={...INFO[c],ts:Math.min(20,+$("mts").value||0),t:Math.min(20,+$("mt").value||0)};saveInfo()}saveTr();["mn","mc","mts","mt"].forEach(i=>$(i).value="");trRender()}});
 (async()=>{try{ADMINH=((await getJSON("config/admin.json")).sha256||"").toLowerCase()}catch(e){}ADMIN=!!ADMINH&&sessionStorage.getItem("tap-adm")===ADMINH;document.body.classList.toggle("noadmin",!ADMIN);await loadNat();naRender();all()})();
-$("importBtn").onclick=parse;
+$("importBtn").onclick=parse;$("clearArt").onclick=()=>{$("inp").value="";artifacts=[];resetOps();all();tabs();toast("Pasted artifacts cleared.")};
 $("sampleBtn").onclick=()=>{$("inp").value=SAMPLE.map(a=>`${a.name} ${a.coord}`).join("\n");artifacts=[...SAMPLE];resetOps();all();tabs();toast("Sample loaded: 8 types × 3 sizes.")};
 $("server").onchange=()=>loadServer($("server").value);
 $("inp").value=SAMPLE.map(a=>`${a.name} ${a.coord}`).join("\n");
