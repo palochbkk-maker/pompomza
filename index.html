@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Travian Artifact Planner — v0.9</title>
+<title>Travian Artifact Planner — v0.9.1</title>
 <style>
 :root{--bg:#0c1321;--surface:#131e30;--line:#2a3a54;--text:#edf3fc;--muted:#91a2bb;--green:#6bdbad;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -32,7 +32,7 @@ textarea{display:block;width:100%;height:130px;resize:vertical;background:#0b142
 </style>
 </head>
 <body>
-<header class="topbar"><div class="brand"><div class="logo">A</div>Travian Artifact Planner <span class="muted" style="font-size:11px;font-weight:400">v0.9</span></div><nav class="nav"><button class="on" data-view="ov">Overview</button><button data-view="op" id="opBtn" class="adm">Operation</button><button data-view="mp">Map</button><button data-view="na">Natars</button><button data-view="st">Setting</button></nav></header>
+<header class="topbar"><div class="brand"><div class="logo">A</div>Travian Artifact Planner <span class="muted" style="font-size:11px;font-weight:400">v0.9.1</span></div><nav class="nav"><button class="on" data-view="ov">Overview</button><button data-view="op" id="opBtn" class="adm">Operation</button><button data-view="mp">Map</button><button data-view="na">Natars</button><button data-view="st">Setting</button></nav></header>
 <main>
 <h1 id="ttl">Overview</h1><p class="sub" id="sub">Paste artifacts, filter, and compare the closest villages.</p>
 <div id="ovPage">
@@ -77,7 +77,7 @@ textarea{display:block;width:100%;height:130px;resize:vertical;background:#0b142
 </div>
 </div>
 <div id="stPage" style="display:none">
-<section class="panel" id="gate"><div class="head"><div><h2>Admin only</h2><p>Troops, treasury and tournament square information are hidden until the admin passcode is entered.</p></div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><input class="field" type="password" id="gp" placeholder="Admin passcode" style="width:220px"><button class="primary" id="gu">Unlock</button><button id="gh">Show hash for config/admin.json</button></div><div id="sbBox" style="display:none;margin-top:10px"><input class="field" id="em" placeholder="Email" style="width:220px"> <input class="field" type="password" id="pw" placeholder="Password" style="width:170px"> <button class="primary" id="siBtn">Sign in</button> <button id="suBtn">Sign up</button></div><div class="note" id="gm"></div></section>
+<section class="panel" id="gate"><div class="head"><div><h2>Admin only</h2><p>Troops, treasury and tournament square information are hidden until the admin passcode is entered.</p></div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><input class="field" type="password" id="gp" placeholder="Admin passcode" style="width:220px"><button class="primary" id="gu">Unlock</button><button id="gh">Show hash for config/admin.json</button></div><div id="sbBox" style="display:none;margin-top:10px"><input class="field" id="em" placeholder="Email" style="width:220px"> <input class="field" type="password" id="pw" placeholder="Password" style="width:170px"> <button class="primary" id="siBtn">Sign in</button> <button id="suBtn">Sign up</button></div><div class="note" id="sbStat">Database: checking…</div><div class="note" id="gm"></div></section>
 <div id="stBody" style="display:none">
 <section class="panel"><div class="head"><div><h2>Confederacies</h2><p>One per line, e.g. “War All: War, WarZ, WarL”. “War All” stays on top; other confeds are sorted by population.</p></div><span style="display:flex;gap:8px"><button id="confReset">Reset to default</button><button class="primary" id="confApply">Apply</button></span></div><textarea id="confTxt" style="height:100px" spellcheck="false"></textarea><div class="note" id="confAl"></div></section>
 <section class="panel"><div class="head"><div><h2>Travian account</h2><p>Link a player first: pasted troops, TS and TC are saved on that account and feed the Overview. Click an account to switch (e.g. to fill in another member).</p></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input class="field" id="lk" list="lkList" placeholder="Player name on the map" style="width:240px" autocomplete="off"><datalist id="lkList"></datalist><button class="primary" id="lkBtn">Link account</button><span id="lkInfo" class="meta">No account linked</span></div><div class="chips" id="accList" style="flex-direction:row;flex-wrap:wrap"></div></section>
@@ -306,7 +306,12 @@ document.addEventListener("click",async e=>{const b=e.target.closest("button");i
 (async()=>{try{ADMINH=((await getJSON("config/admin.json")).sha256||"").toLowerCase()}catch(e){}ADMIN=!!ADMINH&&sessionStorage.getItem("tap-adm")===ADMINH;document.body.classList.toggle("noadmin",!ADMIN);await loadNat();naRender();all()})();
 const pushData=()=>{if(!SB||!USER)return;clearTimeout(pushT);pushT=setTimeout(async()=>{try{await SB.from("members").upsert({user_id:USER.id,server:$("server").value,data:{link:LINK,acc:ACC,info:INFO},updated_at:new Date().toISOString()})}catch(e){console.error(e)}},800)};
 async function pushShared(k,v){if(SB&&ADMIN&&USER)try{await SB.from("shared").upsert({server:$("server").value,key:k,value:v})}catch(e){console.error(e)}}
-async function sbInit(){if(SB)return;try{const c=await getJSON("config/supabase.json");if(!c.url||!c.key)return;const m=await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm");SB=m.createClient(c.url,c.key);$("sbBox").style.display="";SB.auth.onAuthStateChange((_e,s)=>{if((s&&s.user&&s.user.id)!==(USER&&USER.id))onAuth(s)});const{data}=await SB.auth.getSession();await onAuth(data.session)}catch(e){console.error(e)}}
+async function sbInit(){if(SB)return;const st=t=>$("sbStat").textContent="Database: "+t;let c={};
+ try{c=await getJSON("config/supabase.json")}catch(e){return st("config/supabase.json not found in your repo (upload it).")}
+ if(!c.url||!c.key)return st("not configured — config/supabase.json has no url/key yet.");
+ try{const m=await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm");SB=m.createClient(c.url,c.key)}catch(e){return st("could not load the Supabase library ("+e.message+")")}
+ st("connected");$("sbBox").style.display="";SB.auth.onAuthStateChange((_e,s)=>{if((s&&s.user&&s.user.id)!==(USER&&USER.id))onAuth(s)});
+ try{const{data}=await SB.auth.getSession();await onAuth(data.session)}catch(e){st("connected, but sign-in check failed ("+e.message+")")}}
 async function onAuth(s){SESS=s;USER=s?s.user:null;MEMBER=!!USER;REM={acc:{},info:{}};let adm=false;const sv=$("server").value;
  try{const{data:sh}=await SB.from("shared").select("key,value").eq("server",sv);(sh||[]).forEach(r=>{if(r.key==="artifacts"&&Array.isArray(r.value)){artifacts=r.value;resetOps()}})}catch(e){console.error(e)}
  if(USER)try{const{data:p}=await SB.from("profiles").select("role").eq("id",USER.id).single();adm=!!p&&p.role==="admin";
