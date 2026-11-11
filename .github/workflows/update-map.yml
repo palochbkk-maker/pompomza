@@ -1,9 +1,9 @@
 name: Update map data
 on:
   schedule:
-    - cron: "10 17 * * *"   # 00:10 Bangkok
-    - cron: "40 17 * * *"   # retry 00:40 Bangkok
-    - cron: "10 19 * * *"   # retry 02:10 Bangkok
+    - cron: "10 0 * * *"   # 00:10 UTC, right after Travian publishes map.sql at 00:00 UTC
+    - cron: "40 0 * * *"   # retry 00:40 UTC
+    - cron: "10 2 * * *"   # retry 02:10 UTC
   workflow_dispatch: {}
 permissions:
   contents: write
