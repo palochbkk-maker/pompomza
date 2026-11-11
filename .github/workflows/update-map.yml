@@ -1,7 +1,9 @@
 name: Update map data
 on:
   schedule:
-    - cron: "10 17 * * *"
+    - cron: "10 17 * * *"   # 00:10 Bangkok
+    - cron: "40 17 * * *"   # retry 00:40 Bangkok
+    - cron: "10 19 * * *"   # retry 02:10 Bangkok
   workflow_dispatch: {}
 permissions:
   contents: write
