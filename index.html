@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Travian Artifact Planner — v0.17</title>
+<title>Travian Artifact Planner — v0.18</title>
 <style>
 :root{--bg:#0c1321;--surface:#131e30;--line:#2a3a54;--text:#edf3fc;--muted:#91a2bb;--green:#6bdbad;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -33,7 +33,7 @@ textarea{display:block;width:100%;height:130px;resize:vertical;background:#0b142
 </style>
 </head>
 <body>
-<header class="topbar"><div class="brand"><div class="logo">A</div>Travian Artifact Planner <span class="muted" style="font-size:11px;font-weight:400">v0.17</span></div><nav class="nav"><button class="on" data-view="ov">Overview</button><button data-view="op" id="opBtn" class="adm">Operation</button><button data-view="mp">Map</button><button data-view="na">Natars</button><button data-view="st">Setting</button></nav><span class="meta" id="roleBadge" style="margin-left:auto">Guest</span><button id="langBtn" title="Language">ไทย</button></header>
+<header class="topbar"><div class="brand"><div class="logo">A</div>Travian Artifact Planner <span class="muted" style="font-size:11px;font-weight:400">v0.18</span></div><nav class="nav"><button class="on" data-view="ov">Overview</button><button data-view="op" id="opBtn" class="adm">Operation</button><button data-view="mp">Map</button><button data-view="na">Natars</button><button data-view="st">Setting</button></nav><span class="meta" id="roleBadge" style="margin-left:auto">Guest</span><button id="langBtn" title="Language">ไทย</button></header>
 <main>
 <h1 id="ttl">Overview</h1><p class="sub" id="sub">Paste artifacts, filter, and compare the closest villages.</p>
 <div id="ovPage">
@@ -121,7 +121,7 @@ async function loadServer(id){
   DEFCONF=conf[id]||{};CONFCFG=DEFCONF;await loadInfo(id);VBC=Object.fromEntries(V.map(v=>[v[3],v]));resetOps();loadSettings(id);loadPlan(id);try{const a=JSON.parse(localStorage.getItem("tap-art-"+id)||"null");if(Array.isArray(a)&&a.length)artifacts=a}catch(e){}fillArtText();buildConf();players=[];vsel=[];
   $("srvInfo").textContent=`${V.length.toLocaleString()} villages · ${PLAYERS.length.toLocaleString()} players · updated ${new Date(d.updated).toLocaleString()}${Date.now()-new Date(d.updated)>36e5*30?" ⚠ older than a day":""}`;
   all();
- }catch(e){$("srvInfo").textContent="Could not load map data ("+e.message+"). Run scripts/build_data.py first.";console.error(e)}
+ }catch(e){$("srvInfo").textContent="No map data for this server yet ("+e.message+"). An admin needs to run \u201cUpdate map data\u201d in GitHub Actions and check that its log shows this server as OK.";console.error(e)}
 }
 function drawFilters(){
  $("size").innerHTML=SIZES.map(s=>`<label class="check"><input type="checkbox" data-k="size" value="${s}" ${state.size.has(s)?"checked":""}>${s}<span class="cnt">${artifacts.filter(a=>a.size===s).length}</span></label>`).join("");
@@ -443,6 +443,6 @@ document.addEventListener("click",e=>{if(e.target.closest("#bkBtn"))backup()});
 $("importBtn").onclick=parse;$("clearArt").onclick=()=>{$("inp").value="";artifacts=[];resetOps();all();tabs();sv("tap-art-"+$("server").value,"[]");pushShared("artifacts",[]);toast("Pasted artifacts cleared.")};
 $("sampleBtn").onclick=()=>{$("inp").value=SAMPLE_TXT;parse()};$("planSampleBtn").onclick=()=>{const c=$("inp").value.trim();$("inp").value=(c?c+"\n\n":"")+PLAN_TXT;parse()};
 $("server").onchange=()=>loadServer($("server").value).then(()=>SB&&onAuth(SESS));
-(async()=>{try{const s=await getJSON("config/servers.json");$("server").innerHTML=s.map(x=>`<option value="${esc(x.id)}">${esc(x.label)} — ${esc(x.id)}</option>`).join("");loadServer(s[0].id).then(sbInit)}catch(e){$("srvInfo").textContent="Could not load config/servers.json — open the site through a web server, not by double-clicking the file."}})();
+(async()=>{try{const s=await getJSON("config/servers.json");$("server").innerHTML=s.map(x=>`<option value="${esc(x.id)}">${esc(x.label)} — ${esc(x.id)}</option>`).join("");s.forEach(async(x,i)=>{try{const r=await fetch(`data/${x.id}.json`,{method:"HEAD",cache:"no-cache"});if(!r.ok)$("server").options[i].text+=" — no data yet"}catch(e){}});loadServer(s[0].id).then(sbInit)}catch(e){$("srvInfo").textContent="Could not load config/servers.json — open the site through a web server, not by double-clicking the file."}})();
 </script>
 </body></html>
