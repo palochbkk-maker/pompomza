@@ -38,7 +38,7 @@ def convert(text, server):
         uid, aid = int(uid), int(aid)
         if int(tribe) == 5 or uid == 1:      # Natars
             continue
-        players[uid] = [uid, pname, aid]
+        players[uid] = [uid, pname, aid, int(tribe)]
         if aid: alliances[aid] = atag
         villages.append([vname, uid, int(x), int(y), int(pop), 1 if capital else 0])
     return {
