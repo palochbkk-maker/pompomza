@@ -2,7 +2,7 @@
 """Download map.sql for each server in config/servers.json and write data/<server>.json.
 Local test:  python scripts/build_data.py --file map.sql --server ts21.x2.asia.travian.com
 """
-import argparse, json, re, sys, time, urllib.request
+import argparse, json, re, sys, time, urllib.error, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,34 +49,62 @@ def convert(text, server):
         "villages": villages,
     }
 
+def clean_id(s):
+    """Accept 'https://ts5.x1.europe.travian.com/map.sql' or 'ts5.x1.europe.travian.com/' too."""
+    s = re.sub(r"^https?://", "", str(s).strip())
+    return s.split("/")[0].strip()
+
 def download(server):
     req = urllib.request.Request(f"https://{server}/map.sql", headers={"User-Agent": "artifact-planner/1.0 (daily snapshot)"})
-    with urllib.request.urlopen(req, timeout=120) as r:
-        return r.read().decode("utf-8", "replace")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            return r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code} from https://{server}/map.sql - check the server address")
+    except Exception as e:
+        raise RuntimeError(f"could not download https://{server}/map.sql ({e})")
+
+def load_servers():
+    p = ROOT / "config/servers.json"
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        sys.exit(f"::error::config/servers.json is not valid JSON (line {e.lineno}, column {e.colno}): {e.msg}. Usually a missing or extra comma.")
+    if not isinstance(data, list):
+        sys.exit("::error::config/servers.json must be a list like [{\"id\":\"ts21.x2.asia.travian.com\",\"label\":\"Asia 21\"}]")
+    ids = []
+    for s in data:
+        sid = clean_id(s.get("id", "") if isinstance(s, dict) else s)
+        if sid and sid not in ids: ids.append(sid)
+    if not ids:
+        sys.exit("::error::config/servers.json has no servers")
+    return ids
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--file"); ap.add_argument("--server")
     a = ap.parse_args()
     (ROOT / "data").mkdir(exist_ok=True)
+    texts = {}
     if a.file:
-        servers = [a.server or "local"]
-        texts = {servers[0]: Path(a.file).read_text(encoding="utf-8", errors="replace")}
+        servers = [clean_id(a.server or "local")]
+        texts[servers[0]] = Path(a.file).read_text(encoding="utf-8", errors="replace")
     else:
-        servers = [s["id"] for s in json.loads((ROOT / "config/servers.json").read_text())]
-        texts = {}
-    failed = 0
+        servers = load_servers()
+    failed = []
     for s in servers:
         try:
             text = texts.get(s) or download(s)
             data = convert(text, s)
-            if not data["villages"]: raise ValueError("no villages parsed")
+            if not data["villages"]: raise RuntimeError("the file was downloaded but no villages were found in it")
             (ROOT / "data" / f"{s}.json").write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-            print(f"{s}: {len(data['villages'])} villages, {len(data['players'])} players")
-        except Exception as e:      # keep yesterday's file if today's download fails
-            failed += 1; print(f"{s}: FAILED ({e})", file=sys.stderr)
+            print(f"{s}: OK - {len(data['villages'])} villages, {len(data['players'])} players")
+        except Exception as e:      # keep the previous file for this server
+            failed.append(s); print(f"::warning::{s}: FAILED - {e}")
         time.sleep(2)
-    sys.exit(1 if failed == len(servers) else 0)
+    if failed and len(failed) == len(servers):
+        sys.exit("::error::Every server failed. See the warnings above.")
+    print(f"Done: {len(servers)-len(failed)} of {len(servers)} servers updated.")
 
 if __name__ == "__main__":
     main()
